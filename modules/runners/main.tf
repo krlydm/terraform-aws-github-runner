@@ -88,7 +88,6 @@ resource "aws_launch_template" "runner" {
   key_name                             = var.key_name
 
   vpc_security_group_ids = compact(concat(
-    [aws_security_group.runner_sg.id],
     var.runner_additional_security_group_ids,
   ))
 
@@ -133,35 +132,4 @@ resource "aws_launch_template" "runner" {
   tags = local.tags
 
   update_default_version = true
-}
-
-resource "aws_security_group" "runner_sg" {
-  name_prefix = "${var.environment}-github-actions-runner-sg"
-  description = "Github Actions Runner security group"
-
-  vpc_id = var.vpc_id
-
-  dynamic "egress" {
-    for_each = var.egress_rules
-    iterator = each
-
-    content {
-      cidr_blocks      = each.value.cidr_blocks
-      ipv6_cidr_blocks = each.value.ipv6_cidr_blocks
-      prefix_list_ids  = each.value.prefix_list_ids
-      from_port        = each.value.from_port
-      protocol         = each.value.protocol
-      security_groups  = each.value.security_groups
-      self             = each.value.self
-      to_port          = each.value.to_port
-      description      = each.value.description
-    }
-  }
-
-  tags = merge(
-    local.tags,
-    {
-      "Name" = format("%s", local.name_sg)
-    },
-  )
 }

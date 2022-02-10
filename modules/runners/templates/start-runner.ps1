@@ -24,6 +24,9 @@ Write-Host  "Retrieved parameters from AWS SSM"
 $run_as=$parameters.where( {$_.Name -eq "/$environment/runner/run-as"}).value
 Write-Host  "Retrieved /$environment/runner/run-as parameter - ($run_as)"
 
+$number_of_runners=$parameters.where( {$_.Name -eq "/$environment/runner/number_of_runners"}).value
+Write-Host  "Retrieved /$environment/runner/number_of_runners parameter - ($number_of_runners)"
+
 $enable_cloudwatch_agent=$parameters.where( {$_.Name -eq "/$environment/runner/enable-cloudwatch"}).value
 Write-Host  "Retrieved /$environment/runner/enable-cloudwatch parameter - ($enable_cloudwatch_agent)"
 
@@ -82,16 +85,30 @@ foreach ($group in @("Administrators", "docker-users")) {
 Set-ItemProperty HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System -Name ConsentPromptBehaviorAdmin -Value 0 -Force
 Write-Host "Disabled User Access Control (UAC)"
 
-$configCmd = ".\config.cmd --unattended --name $InstanceId --work `"_work`" $config"
-Write-Host "Configure GH Runner as user $run_as"
-Invoke-Expression $configCmd
+for ($i = 1 ; $i -le $number_of_runners ; $i++){  
+    Write-Host "Un-zip action runner to #$i"
+    New-Item $i -ItemType Directory -ea 0
+    Expand-Archive -Path actions-runner.zip -DestinationPath $i
+    Set-Location $i
 
-Write-Host "Starting the runner as user $run_as"
+    $configCmd = ".\config.cmd --unattended --name $InstanceId-$i --work `"_work`" $config"
+    Write-Host "Configure GH Runner #$i as user $run_as"
+    Invoke-Expression $configCmd
 
-Write-Host  "Installing the runner as a service"
+    Write-Host "Starting the runner #$i as user $run_as"
 
-$action = New-ScheduledTaskAction -WorkingDirectory "$pwd" -Execute "run.cmd"
-$trigger = Get-CimClass "MSFT_TaskRegistrationTrigger" -Namespace "Root/Microsoft/Windows/TaskScheduler"
-Register-ScheduledTask -TaskName "runnertask" -Action $action -Trigger $trigger -User $username -Password $password -RunLevel Highest -Force
-Write-Host "Starting the runner in persistent mode"
+    Write-Host  "Installing the runner #$i as a service"
+
+    $action = New-ScheduledTaskAction -WorkingDirectory "$pwd" -Execute "run.cmd"
+    $trigger = Get-CimClass "MSFT_TaskRegistrationTrigger" -Namespace "Root/Microsoft/Windows/TaskScheduler"
+    Register-ScheduledTask -TaskName "runnertask-$i" -Action $action -Trigger $trigger -User $username -Password $password -RunLevel Highest -Force
+    Write-Host "Starting the runner #$i in persistent mode"
+
+
+    Set-Location ..
+}
+
 Write-Host "Starting runner after $(((get-date) - (gcim Win32_OperatingSystem).LastBootUpTime).tostring("hh':'mm':'ss''"))"
+
+Write-Host "Delete zip file"
+Remove-Item actions-runner.zip

@@ -252,6 +252,12 @@ variable "runner_run_as" {
   default     = "ec2-user"
 }
 
+variable "runner_number_of_runners" {
+  description = "Number of runner processes started on each instance."
+  type        = number
+  default     = 1
+}
+
 variable "runners_maximum_count" {
   description = "The maximum number of runners that will be created."
   type        = number

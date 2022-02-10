@@ -5,6 +5,13 @@ resource "aws_ssm_parameter" "runner_config_run_as" {
   tags  = local.tags
 }
 
+resource "aws_ssm_parameter" "runner_config_number_of_runners" {
+  name  = "/${var.environment}/runner/number_of_runners"
+  type  = "String"
+  value = var.runner_number_of_runners
+  tags  = local.tags
+}
+
 resource "aws_ssm_parameter" "runner_agent_mode" {
   name  = "/${var.environment}/runner/agent-mode"
   type  = "String"
