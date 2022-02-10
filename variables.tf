@@ -501,6 +501,12 @@ variable "enable_ephemeral_runners" {
   default     = false
 }
 
+variable "enable_managed_runner_security_group" {
+  description = "Enabling the default managed security group creation. Unmanaged security groups can be specified via `runner_additional_security_group_ids`."
+  type        = bool
+  default     = true
+}
+
 variable "runner_os" {
   description = "The Operating System to use for GitHub Actions Runners (linux,win)"
   type        = string
