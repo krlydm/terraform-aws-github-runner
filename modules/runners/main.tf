@@ -136,6 +136,7 @@ resource "aws_launch_template" "runner" {
 }
 
 resource "aws_security_group" "runner_sg" {
+  count = var.enable_managed_runner_security_group ? 1 : 0
   name_prefix = "${var.environment}-github-actions-runner-sg"
   description = "Github Actions Runner security group"
 
