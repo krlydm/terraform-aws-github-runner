@@ -47,6 +47,27 @@ async function getOrCreateOctokit(runner: RunnerInfo): Promise<Octokit> {
   return octokit;
 }
 
+async function getGitHubRunnerBusyState(client: Octokit, ec2runner: RunnerInfo, runnerId: number): Promise<boolean> {
+  const state = 
+  ec2runner.type === 'Org'
+    ? await client.actions.getSelfHostedRunnerForOrg({
+        runner_id: runnerId,
+        org: ec2runner.owner,
+      })
+    : await client.actions.getSelfHostedRunnerForRepo({
+        runner_id: runnerId,
+        owner: ec2runner.owner.split('/')[0],
+        repo: ec2runner.owner.split('/')[1],
+      });
+
+  logger.info(
+    `Runner '${ec2runner.instanceId}' - GitHub Runner ID '${runnerId}' - Busy: ${state.data.busy}`,
+    LogFields.print(),
+  );
+
+  return state.data.busy;
+}
+
 async function listGitHubRunners(runner: RunnerInfo): Promise<GhRunners> {
   const key = runner.owner as string;
   const cachedRunners = githubCache.runners.get(key);
@@ -86,33 +107,45 @@ function bootTimeExceeded(ec2Runner: RunnerInfo): boolean {
   return launchTimePlusBootTime < moment(new Date()).utc();
 }
 
-async function removeRunner(ec2runner: RunnerInfo, ghRunnerId: number): Promise<void> {
+async function removeRunner(ec2runner: RunnerInfo, ghRunnerIds: number[]): Promise<void> {
   const githubAppClient = await getOrCreateOctokit(ec2runner);
   try {
-    const result =
-      ec2runner.type === 'Org'
-        ? await githubAppClient.actions.deleteSelfHostedRunnerFromOrg({
-            runner_id: ghRunnerId,
-            org: ec2runner.owner,
-          })
-        : await githubAppClient.actions.deleteSelfHostedRunnerFromRepo({
-            runner_id: ghRunnerId,
-            owner: ec2runner.owner.split('/')[0],
-            repo: ec2runner.owner.split('/')[1],
-          });
+    const states = await Promise.all(ghRunnerIds.map(async ghRunnerId => {
+      return await getGitHubRunnerBusyState(githubAppClient, ec2runner, ghRunnerId);
+    }));
 
-    if (result.status == 204) {
-      await terminateRunner(ec2runner.instanceId);
-      logger.info(
-        `AWS runner instance '${ec2runner.instanceId}' is terminated and GitHub runner is de-registered.`,
-        LogFields.print(),
-      );
+    if (states.every((busy) => busy === false)) {
+      const statuses = await Promise.all(ghRunnerIds.map(async ghRunnerId => {
+        return (ec2runner.type === 'Org'
+          ? await githubAppClient.actions.deleteSelfHostedRunnerFromOrg({
+              runner_id: ghRunnerId,
+              org: ec2runner.owner,
+            })
+          : await githubAppClient.actions.deleteSelfHostedRunnerFromRepo({
+              runner_id: ghRunnerId,
+              owner: ec2runner.owner.split('/')[0],
+              repo: ec2runner.owner.split('/')[1],
+            })).status;
+        }))
+
+      if (statuses.every((status) => status == 204)) {
+        await terminateRunner(ec2runner.instanceId);
+        logger.info(
+          `AWS runner instance '${ec2runner.instanceId}' is terminated and GitHub runner is de-registered.`,
+          LogFields.print(),
+        );
+      } else {
+        logger.error(`Failed to de-register GitHub runner: ${statuses}`, LogFields.print());
+      }
     } else {
-      logger.error(`Failed to de-register GitHub runner: ${result.status}`, LogFields.print());
+        logger.info(
+          `Runner '${ec2runner.instanceId}' cannot be de-registered, because it is still busy.`,
+          LogFields.print(),
+        );
     }
   } catch (e) {
     logger.info(
-      `Runner '${ec2runner.instanceId}' cannot be de-registered, most likely the runner is active.`,
+      `Runner '${ec2runner.instanceId}' cannot be de-registered, most likely it is still busy.`,
       LogFields.print(),
     );
   }
@@ -133,15 +166,15 @@ async function evaluateAndRemoveRunners(
     );
     for (const ec2Runner of ec2RunnersFiltered) {
       const ghRunners = await listGitHubRunners(ec2Runner);
-      const ghRunner = ghRunners.find((runner) => runner.name === ec2Runner.instanceId);
-      if (ghRunner) {
+      const ghRunnersFiltered = ghRunners.filter((runner: { name: string; }) => runner.name.startsWith(ec2Runner.instanceId));
+      if (ghRunnersFiltered.length) {
         if (runnerMinimumTimeExceeded(ec2Runner)) {
           if (idleCounter > 0) {
             idleCounter--;
             logger.info(`Runner '${ec2Runner.instanceId}' will kept idle.`, LogFields.print());
           } else {
             logger.info(`Runner '${ec2Runner.instanceId}' will be terminated.`, LogFields.print());
-            await removeRunner(ec2Runner, ghRunner.id);
+            await removeRunner(ec2Runner, ghRunnersFiltered.map((runner: { id: any; }) => runner.id));
           }
         }
       } else {
