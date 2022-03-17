@@ -249,22 +249,22 @@ describe('scaleDown', () => {
     mockOctokit.actions.getSelfHostedRunnerForRepo.mockImplementation((repo) => {
       if (repo.runner_id === 1121) {
         return {
-          data: { busy: true }
+          data: { busy: true },
         };
       } else {
         return {
-          data: { busy: false }
+          data: { busy: false },
         };
       }
     });
     mockOctokit.actions.getSelfHostedRunnerForOrg.mockImplementation((repo) => {
       if (repo.runner_id === 1131) {
         return {
-          data: { busy: true }
+          data: { busy: true },
         };
       } else {
         return {
-          data: { busy: false }
+          data: { busy: false },
         };
       }
     });
