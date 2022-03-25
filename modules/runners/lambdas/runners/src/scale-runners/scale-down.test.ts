@@ -313,7 +313,8 @@ describe('scaleDown', () => {
     );
 
     RUNNERS_ALL_REMOVED = DEFAULT_RUNNERS_ORG.filter(
-      (r) => !r.instanceId.includes('running') && !r.instanceId.includes('registered'),
+      (r) =>
+        !r.instanceId.includes('running') && !r.instanceId.includes('registered'),
     );
     DEFAULT_RUNNERS_ORPHANED = DEFAULT_RUNNERS_ORIGINAL.filter(
       (r) => r.instanceId.includes('orphan') && !r.instanceId.includes('not-registered'),

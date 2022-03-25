@@ -150,10 +150,7 @@ async function removeRunner(ec2runner: RunnerInfo, ghRunnerIds: number[]): Promi
       );
     }
   } catch (e) {
-    logger.info(
-      `Runner '${ec2runner.instanceId}' cannot be de-registered, most likely it is still busy.`,
-      LogFields.print(),
-    );
+    logger.error(`Runner '${ec2runner.instanceId}' cannot be de-registered. Error: ${e}`, LogFields.print());
   }
 }
 
@@ -179,7 +176,7 @@ async function evaluateAndRemoveRunners(
         if (runnerMinimumTimeExceeded(ec2Runner)) {
           if (idleCounter > 0) {
             idleCounter--;
-            logger.info(`Runner '${ec2Runner.instanceId}' will kept idle.`, LogFields.print());
+            logger.info(`Runner '${ec2Runner.instanceId}' will be kept idle.`, LogFields.print());
           } else {
             logger.info(`Runner '${ec2Runner.instanceId}' will be terminated.`, LogFields.print());
             await removeRunner(
