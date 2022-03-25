@@ -112,6 +112,7 @@ async function removeRunner(ec2runner: RunnerInfo, ghRunnerIds: number[]): Promi
   try {
     const states = await Promise.all(
       ghRunnerIds.map(async (ghRunnerId) => {
+        // Get busy state instead of using the output of listGitHubRunners(...) to minimize to race condition.
         return await getGitHubRunnerBusyState(githubAppClient, ec2runner, ghRunnerId);
       }),
     );
